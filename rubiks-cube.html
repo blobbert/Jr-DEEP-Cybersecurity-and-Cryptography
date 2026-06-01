@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive 3D Rubik's Cube</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  #cube-container { width: 100vw; height: 100vh; position: relative; background: #111; overflow: hidden; }
+  #move-label { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); color: #fff; font-family: monospace; font-size: 20px; font-weight: 700; letter-spacing: 2px; z-index: 10; text-shadow: 0 0 12px #0ff; }
+  #move-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: #aaa; font-family: monospace; font-size: 13px; z-index: 10; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div id="cube-container">
+  <div id="move-label"></div>
+  <div id="move-counter"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function() {
+  const container = document.getElementById('cube-container');
+  const label = document.getElementById('move-label');
+  const counter = document.getElementById('move-counter');
+
+  const W = container.clientWidth, H = container.clientHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(W, H);
+  renderer.shadowMap.enabled = true;
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x111111);
+
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+  camera.position.set(5.5, 4.5, 6.5);
+  camera.lookAt(0, 0, 0);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(8, 12, 8);
+  scene.add(dirLight);
+  const dirLight2 = new THREE.DirectionalLight(0x8888ff, 0.3);
+  dirLight2.position.set(-8, -4, -6);
+  scene.add(dirLight2);
+
+  const COLORS = {
+    U: 0xffffff, D: 0xFFD500, F: 0xB71234, B: 0xFF5800, L: 0x009B48, R: 0x0046AD, I: 0x111111,
+  };
+
+  const GAP = 0.06;
+  const SIZE = 1.0;
+  const OFFSET = SIZE + GAP;
+
+  function makeCubie(ix, iy, iz) {
+    const group = new THREE.Group();
+    const innerGeo = new THREE.BoxGeometry(SIZE * 0.88, SIZE * 0.88, SIZE * 0.88);
+    const innerMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const inner = new THREE.Mesh(innerGeo, innerMat);
+    group.add(inner);
+
+    const S = SIZE * 0.92;
+    const T = SIZE * 0.04;
+    const inset = SIZE * 0.45;
+
+    const faces = [
+      { axis: 'z', dir: 1,  face: 'F', color: iz === 1  ? COLORS.F : COLORS.I },
+      { axis: 'z', dir: -1, face: 'B', color: iz === -1 ? COLORS.B : COLORS.I },
+      { axis: 'y', dir: 1,  face: 'U', color: iy === 1  ? COLORS.U : COLORS.I },
+      { axis: 'y', dir: -1, face: 'D', color: iy === -1 ? COLORS.D : COLORS.I },
+      { axis: 'x', dir: -1, face: 'L', color: ix === -1 ? COLORS.L : COLORS.I },
+      { axis: 'x', dir: 1,  face: 'R', color: ix === 1  ? COLORS.R : COLORS.I },
+    ];
+
+    for (const f of faces) {
+      const geo = new THREE.BoxGeometry(
+        f.axis === 'x' ? T : S,
+        f.axis === 'y' ? T : S,
+        f.axis === 'z' ? T : S
+      );
+      const mat = new THREE.MeshLambertMaterial({ color: f.color });
+      const mesh = new THREE.Mesh(geo, mat);
+      if (f.axis === 'x') mesh.position.x = f.dir * inset;
+      if (f.axis === 'y') mesh.position.y = f.dir * inset;
+      if (f.axis === 'z') mesh.position.z = f.dir * inset;
+      group.add(mesh);
+    }
+
+    group.position.set(ix * OFFSET, iy * OFFSET, iz * OFFSET);
+    group.userData = { ix, iy, iz };
+    return group;
+  }
+
+  const cubies = [];
+  for (let ix = -1; ix <= 1; ix++)
+    for (let iy = -1; iy <= 1; iy++)
+      for (let iz = -1; iz <= 1; iz++) {
+        const c = makeCubie(ix, iy, iz);
+        cubies.push(c);
+        scene.add(c);
+      }
+
+  const MOVES_DEF = {
+    'U':  { axis: 'y', layer:  1, dir:  1 },
+    "U'": { axis: 'y', layer:  1, dir: -1 },
+    'D':  { axis: 'y', layer: -1, dir: -1 },
+    "D'": { axis: 'y', layer: -1, dir:  1 },
+    'F':  { axis: 'z', layer:  1, dir:  1 },
+    "F'": { axis: 'z', layer:  1, dir: -1 },
+    'B':  { axis: 'z', layer: -1, dir: -1 },
+    "B'": { axis: 'z', layer: -1, dir:  1 },
+    'R':  { axis: 'x', layer:  1, dir:  1 },
+    "R'": { axis: 'x', layer:  1, dir: -1 },
+    'L':  { axis: 'x', layer: -1, dir: -1 },
+    "L'": { axis: 'x', layer: -1, dir:  1 },
+  };
+  const ALL_MOVES = Object.keys(MOVES_DEF);
+
+  function pickMove(last) {
+    let opts = ALL_MOVES.slice();
+    if (last) {
+      const base = last.replace("'","");
+      const rev = last.includes("'") ? base : base + "'";
+      opts = opts.filter(m => m !== rev);
+    }
+    return opts[Math.floor(Math.random() * opts.length)];
+  }
+
+  // Whole-cube group
+  const wholeGroup = new THREE.Group();
+  for (const c of cubies) {
+    scene.remove(c);
+    wholeGroup.add(c);
+  }
+  scene.add(wholeGroup);
+
+  function applyInstant(move) {
+    const { axis, layer, dir } = MOVES_DEF[move];
+    const angle = dir * Math.PI / 2;
+    const pivot = new THREE.Group();
+    wholeGroup.add(pivot);
+    const inLayer = cubies.filter(c => {
+      const wp = new THREE.Vector3();
+      c.getWorldPosition(wp);
+      const lp = wholeGroup.worldToLocal(wp.clone());
+      return Math.round(lp[axis] / OFFSET) === layer;
+    });
+    for (const c of inLayer) pivot.attach(c);
+    const q = new THREE.Quaternion();
+    const ax = new THREE.Vector3(axis==='x'?1:0, axis==='y'?1:0, axis==='z'?1:0);
+    q.setFromAxisAngle(ax, angle);
+    pivot.quaternion.premultiply(q);
+    pivot.updateMatrixWorld();
+    for (const c of inLayer) {
+      wholeGroup.attach(c);
+      c.position.x = Math.round(c.position.x / OFFSET) * OFFSET;
+      c.position.y = Math.round(c.position.y / OFFSET) * OFFSET;
+      c.position.z = Math.round(c.position.z / OFFSET) * OFFSET;
+    }
+    wholeGroup.remove(pivot);
+  }
+
+  // Seeded pre-scramble (20 moves, fixed seed for consistent starting state)
+  let rng = 42;
+  function seededRand() { rng = (rng * 1664525 + 1013904223) & 0xffffffff; return (rng >>> 0) / 0xffffffff; }
+  let lastSeed = null;
+  for (let i = 0; i < 20; i++) {
+    let opts = ALL_MOVES.slice();
+    if (lastSeed) {
+      const base = lastSeed.replace("'","");
+      const rev = lastSeed.includes("'") ? base : base + "'";
+      opts = opts.filter(m => m !== rev);
+    }
+    const m = opts[Math.floor(seededRand() * opts.length)];
+    applyInstant(m);
+    lastSeed = m;
+  }
+
+  // --- Animation state machine ---
+  // States: 'idle' (pre-start), 'animating', 'pausing', 'done_wait', 'resetting'
+  let state = 'idle';
+  const animDuration = 0.45;
+  const PAUSE_BETWEEN = 0.18;
+  const DONE_WAIT = 3.0;  // 3 second pause after last move before looping
+
+  let animMoves = [];
+  let currentMove = 0;
+  let animProgress = 0;
+  let timer = 0;
+  let pivotRef = null;
+  let inLayerRef = [];
+  let axRef, dirRef;
+
+  function buildAnimMoves() {
+    animMoves = [];
+    let last = null;
+    for (let i = 0; i < 10; i++) {
+      const m = pickMove(last);
+      animMoves.push(m);
+      last = m;
+    }
+  }
+
+  function startMove(idx) {
+    const move = animMoves[idx];
+    const { axis, layer, dir } = MOVES_DEF[move];
+    axRef = axis; dirRef = dir;
+    label.textContent = move;
+    counter.textContent = `move ${idx+1} of ${animMoves.length}`;
+    animProgress = 0;
+
+    pivotRef = new THREE.Group();
+    wholeGroup.add(pivotRef);
+    inLayerRef = cubies.filter(c => {
+      const wp = new THREE.Vector3();
+      c.getWorldPosition(wp);
+      const lp = wholeGroup.worldToLocal(wp.clone());
+      return Math.round(lp[axis] / OFFSET) === layer;
+    });
+    for (const c of inLayerRef) pivotRef.attach(c);
+    state = 'animating';
+  }
+
+  function finishMove() {
+    const angle = dirRef * Math.PI / 2;
+    const ax = new THREE.Vector3(axRef==='x'?1:0, axRef==='y'?1:0, axRef==='z'?1:0);
+    const q = new THREE.Quaternion();
+    q.setFromAxisAngle(ax, angle);
+    pivotRef.quaternion.copy(q);
+    pivotRef.updateMatrixWorld();
+    for (const c of inLayerRef) {
+      wholeGroup.attach(c);
+      c.position.x = Math.round(c.position.x / OFFSET) * OFFSET;
+      c.position.y = Math.round(c.position.y / OFFSET) * OFFSET;
+      c.position.z = Math.round(c.position.z / OFFSET) * OFFSET;
+      c.rotation.x = Math.round(c.rotation.x / (Math.PI/2)) * (Math.PI/2);
+      c.rotation.y = Math.round(c.rotation.y / (Math.PI/2)) * (Math.PI/2);
+      c.rotation.z = Math.round(c.rotation.z / (Math.PI/2)) * (Math.PI/2);
+    }
+    wholeGroup.remove(pivotRef);
+    pivotRef = null;
+  }
+
+  function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+  // Reset cube to solved state instantly, then re-apply pre-scramble
+  function resetCube() {
+    // Detach all cubies, reset their transforms
+    for (const c of cubies) {
+      // Remove from wholeGroup temporarily
+      wholeGroup.remove(c);
+    }
+    // Rebuild cubies in solved positions
+    for (const c of cubies) {
+      const { ix, iy, iz } = c.userData;
+      c.position.set(ix * OFFSET, iy * OFFSET, iz * OFFSET);
+      c.rotation.set(0, 0, 0);
+      c.quaternion.set(0, 0, 0, 1);
+      // Reset sticker colors
+      let fi = 0;
+      // children: [0]=inner body, [1..6]=stickers
+      const faceMap = [
+        { axis: 'z', dir: 1,  color: iz === 1  ? COLORS.F : COLORS.I },
+        { axis: 'z', dir: -1, color: iz === -1 ? COLORS.B : COLORS.I },
+        { axis: 'y', dir: 1,  color: iy === 1  ? COLORS.U : COLORS.I },
+        { axis: 'y', dir: -1, color: iy === -1 ? COLORS.D : COLORS.I },
+        { axis: 'x', dir: -1, color: ix === -1 ? COLORS.L : COLORS.I },
+        { axis: 'x', dir: 1,  color: ix === 1  ? COLORS.R : COLORS.I },
+      ];
+      for (let i = 0; i < 6; i++) {
+        c.children[i+1].material.color.setHex(faceMap[i].color);
+      }
+      wholeGroup.add(c);
+    }
+    // Re-apply pre-scramble using same seed
+    rng = 42;
+    let ls = null;
+    for (let i = 0; i < 20; i++) {
+      let opts = ALL_MOVES.slice();
+      if (ls) {
+        const base = ls.replace("'","");
+        const rev = ls.includes("'") ? base : base + "'";
+        opts = opts.filter(m => m !== rev);
+      }
+      const m = opts[Math.floor(seededRand() * opts.length)];
+      applyInstant(m);
+      ls = m;
+    }
+  }
+
+  // Initial setup
+  buildAnimMoves();
+  label.textContent = 'SCRAMBLED';
+  counter.textContent = `${animMoves.length} moves queued`;
+  let startDelay = 1.2;
+  state = 'idle';
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.1);
+
+    // Idle rotation
+    wholeGroup.rotation.y += 0.004;
+
+    if (state === 'idle') {
+      startDelay -= dt;
+      if (startDelay <= 0) {
+        currentMove = 0;
+        startMove(0);
+      }
+    } else if (state === 'animating') {
+      animProgress += dt / animDuration;
+      const t = Math.min(animProgress, 1);
+      const angle = dirRef * Math.PI / 2 * easeInOut(t);
+      const ax = new THREE.Vector3(axRef==='x'?1:0, axRef==='y'?1:0, axRef==='z'?1:0);
+      const q = new THREE.Quaternion();
+      q.setFromAxisAngle(ax, angle);
+      if (pivotRef) pivotRef.quaternion.copy(q);
+
+      if (animProgress >= 1) {
+        finishMove();
+        if (currentMove >= animMoves.length - 1) {
+          // Last move done — enter done_wait
+          label.textContent = '✓ DONE';
+          counter.textContent = `${animMoves.length} moves applied`;
+          timer = DONE_WAIT;
+          state = 'done_wait';
+        } else {
+          timer = PAUSE_BETWEEN;
+          state = 'pausing';
+        }
+      }
+    } else if (state === 'pausing') {
+      timer -= dt;
+      if (timer <= 0) {
+        currentMove++;
+        startMove(currentMove);
+      }
+    } else if (state === 'done_wait') {
+      timer -= dt;
+      if (timer <= 0) {
+        // Reset and loop
+        label.textContent = 'RESETTING...';
+        counter.textContent = '';
+        state = 'resetting';
+        timer = 0.5; // brief pause after reset label appears
+      }
+    } else if (state === 'resetting') {
+      timer -= dt;
+      if (timer <= 0) {
+        resetCube();
+        buildAnimMoves();
+        label.textContent = 'SCRAMBLED';
+        counter.textContent = `${animMoves.length} moves queued`;
+        currentMove = 0;
+        startDelay = 0.8;
+        state = 'idle';
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    const W2 = container.clientWidth, H2 = container.clientHeight;
+    camera.aspect = W2 / H2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(W2, H2);
+  });
+})();
+</script>
+</body>
+</html>
