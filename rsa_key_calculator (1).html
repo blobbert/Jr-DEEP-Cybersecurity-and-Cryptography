@@ -1,0 +1,258 @@
+
+<h2 class="sr-only">RSA key calculator — enter two primes and a public exponent to compute your public and private keys</h2>
+
+<div style="padding: 1.5rem 0;">
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem;">
+  <div>
+    <label style="font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">Prime p</label>
+    <input type="number" id="inp-p" value="29" min="2" style="width: 100%; box-sizing: border-box;" />
+  </div>
+  <div>
+    <label style="font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">Prime q</label>
+    <input type="number" id="inp-q" value="13" min="2" style="width: 100%; box-sizing: border-box;" />
+  </div>
+  <div>
+    <label style="font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 6px;">Public exponent e</label>
+    <input type="number" id="inp-e" value="5" min="2" style="width: 100%; box-sizing: border-box;" />
+  </div>
+</div>
+
+<button onclick="calculate()" style="margin-bottom: 1.5rem;">Calculate keys</button>
+
+<div id="error" style="display:none; font-size: 14px; margin-bottom: 1rem; padding: 10px 14px; border-radius: var(--border-radius-md);"></div>
+
+<div id="results" style="display:none;">
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem;">
+    <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem;">
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;">n = p × q</p>
+      <p id="out-n" style="font-size: 22px; font-weight: 500; margin: 0;"></p>
+    </div>
+    <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem;">
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;">φ(n) = (p−1)(q−1)</p>
+      <p id="out-phi" style="font-size: 22px; font-weight: 500; margin: 0;"></p>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 1.5rem;">
+    <div style="background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem;">
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;"><i class="ti ti-lock-open" aria-hidden="true" style="font-size:15px; vertical-align:-2px; margin-right:4px;"></i>Public key</p>
+      <p id="out-pub" style="font-size: 18px; font-weight: 500; margin: 0 0 6px; font-family: var(--font-mono);"></p>
+      <p style="font-size: 12px; color: var(--color-text-tertiary); margin: 0;">Share this openly</p>
+    </div>
+    <div style="background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem;">
+      <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px;"><i class="ti ti-lock" aria-hidden="true" style="font-size:15px; vertical-align:-2px; margin-right:4px;"></i>Private key</p>
+      <p id="out-priv" style="font-size: 18px; font-weight: 500; margin: 0 0 6px; font-family: var(--font-mono);"></p>
+      <p style="font-size: 12px; color: var(--color-text-tertiary); margin: 0;">Keep this secret</p>
+    </div>
+  </div>
+
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+    <p style="font-size: 13px; font-weight: 500; margin: 0 0 10px;">Try it — encrypt a message</p>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <input type="number" id="inp-msg" placeholder="Message M (integer)" min="1" style="flex: 1; min-width: 140px;" />
+      <button onclick="encryptMsg()">Encrypt ↗</button>
+      <button onclick="decryptMsg()">Decrypt ↗</button>
+    </div>
+    <div id="enc-result" style="display:none; margin-top: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;">
+        <div>
+          <p style="font-size: 12px; color: var(--color-text-secondary); margin: 0 0 2px;">Ciphertext C</p>
+          <p id="out-cipher" style="font-size: 18px; font-weight: 500; margin: 0; font-family: var(--font-mono);"></p>
+          <p style="font-size: 11px; color: var(--color-text-tertiary); margin: 2px 0 0;">M<sup>e</sup> mod n</p>
+        </div>
+        <div>
+          <p style="font-size: 12px; color: var(--color-text-secondary); margin: 0 0 2px;">Decrypted M</p>
+          <p id="out-decrypt" style="font-size: 18px; font-weight: 500; margin: 0; font-family: var(--font-mono);"></p>
+          <p style="font-size: 11px; color: var(--color-text-tertiary); margin: 2px 0 0;">C<sup>d</sup> mod n</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem;">
+    <p style="font-size: 13px; font-weight: 500; margin: 0 0 8px;">Step-by-step</p>
+    <div id="steps" style="font-size: 13px; color: var(--color-text-secondary); line-height: 1.9; font-family: var(--font-mono);"></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+let _n, _phi, _e, _d;
+
+function isPrime(n) {
+  if (n < 2) return false;
+  if (n < 4) return true;
+  if (n % 2 === 0 || n % 3 === 0) return false;
+  for (let i = 5; i * i <= n; i += 6)
+    if (n % i === 0 || n % (i + 2) === 0) return false;
+  return true;
+}
+
+function gcd(a, b) { return b === 0n ? a : gcd(b, a % b); }
+
+function modInverse(e, phi) {
+  let [old_r, r] = [e, phi];
+  let [old_s, s] = [1n, 0n];
+  while (r !== 0n) {
+    const q = old_r / r;
+    [old_r, r] = [r, old_r - q * r];
+    [old_s, s] = [s, old_s - q * s];
+  }
+  if (old_r !== 1n) return null;
+  return ((old_s % phi) + phi) % phi;
+}
+
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = (result * base) % mod;
+    exp = exp / 2n;
+    base = (base * base) % mod;
+  }
+  return result;
+}
+
+// Inline styles for error (danger) and warning (amber) banners
+const STYLE_ERROR   = 'color: var(--color-text-danger, #b91c1c); background: var(--color-background-danger, #fef2f2); border: 1px solid var(--color-border-danger, #fca5a5);';
+const STYLE_WARNING = 'color: #92400e; background: #fffbeb; border: 1px solid #fcd34d;';
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.innerHTML = '<strong>Error:</strong> ' + msg;
+  el.style.cssText = STYLE_ERROR + 'display:block; font-size:14px; margin-bottom:1rem; padding:10px 14px; border-radius:var(--border-radius-md);';
+  document.getElementById('results').style.display = 'none';
+}
+
+function showWarning(msg) {
+  const el = document.getElementById('error');
+  el.innerHTML = '<strong>⚠ Warning:</strong> ' + msg;
+  el.style.cssText = STYLE_WARNING + 'display:block; font-size:14px; margin-bottom:1rem; padding:10px 14px; border-radius:var(--border-radius-md);';
+}
+
+function hideNotice() {
+  document.getElementById('error').style.display = 'none';
+}
+
+function calculate() {
+  hideNotice();
+  document.getElementById('enc-result').style.display = 'none';
+
+  const p = parseInt(document.getElementById('inp-p').value);
+  const q = parseInt(document.getElementById('inp-q').value);
+  const e = parseInt(document.getElementById('inp-e').value);
+
+  // --- Hard errors (block computation) ---
+
+  if (!isPrime(p))
+    return showError(`p = ${p} is not prime. Please enter a prime number.`);
+
+  if (!isPrime(q))
+    return showError(`q = ${q} is not prime. Please enter a prime number.`);
+
+  if (p === q)
+    return showError('p and q must be different primes.');
+
+  const n   = BigInt(p) * BigInt(q);
+  const phi = BigInt(p - 1) * BigInt(q - 1);
+  const eBig = BigInt(e);
+
+  if (eBig <= 1n || eBig >= phi)
+    return showError(`e must satisfy 1 &lt; e &lt; φ(n). Valid range: 2 – ${phi - 1n}.`);
+
+  if (gcd(eBig, phi) !== 1n)
+    return showError(`gcd(e, φ(n)) = gcd(${e}, ${phi}) ≠ 1. e must be coprime with φ(n). Try a different value of e.`);
+
+  // e must not equal p or q — structural leakage
+  if (e === p)
+    return showError(`e = ${e} equals p. This leaks structural information about the key. Choose a different e.`);
+
+  if (e === q)
+    return showError(`e = ${e} equals q. This leaks structural information about the key. Choose a different e.`);
+
+  // e must not be a self-inverse mod φ(n): e² mod φ(n) ≠ 1
+  if ((eBig * eBig) % phi === 1n)
+    return showError(`e = ${e} is self-inverse mod φ(n) (e² mod φ(n) = 1), which means d = e — the public and private keys would be identical. Choose a different e.`);
+
+  const d = modInverse(eBig, phi);
+  if (d === null)
+    return showError('Could not compute modular inverse. Try different values.');
+
+  // d must be > 1
+  if (d <= 1n)
+    return showError(`Computed d = ${d}. d = 1 means no encryption — any ciphertext equals the plaintext. Choose a different e.`);
+
+  // d must not equal e (direct catch-all, catches any residual self-inverse edge)
+  if (d === eBig)
+    return showError(`Computed d = e = ${e}. The public and private keys are identical, which breaks RSA security. Choose a different e.`);
+
+  // --- Non-fatal warnings (allow computation, but flag) ---
+
+  const warnings = [];
+
+  if (p < 11 || q < 11)
+    warnings.push(`p = ${p} and/or q = ${q} are very small primes. This is insecure outside of educational use.`);
+
+  if (e === 1)
+    warnings.push(`e = 1 is trivially insecure (C = M). Accepted here for demonstration only.`);
+
+  // Common weak e values worth flagging (not blocking)
+  if (e === 3)
+    warnings.push(`e = 3 is historically weak when used without proper padding. Fine for this demo.`);
+
+  _n = n; _phi = phi; _e = eBig; _d = d;
+
+  if (warnings.length > 0)
+    showWarning(warnings.join('<br>'));
+
+  document.getElementById('out-n').textContent   = n.toString();
+  document.getElementById('out-phi').textContent = phi.toString();
+  document.getElementById('out-pub').textContent  = `(e=${e}, n=${n})`;
+  document.getElementById('out-priv').textContent = `(d=${d}, n=${n})`;
+
+  document.getElementById('steps').innerHTML =
+    `1. n = ${p} × ${q} = ${n}<br>` +
+    `2. φ(n) = (${p}−1)(${q}−1) = ${p-1} × ${q-1} = ${phi}<br>` +
+    `3. e = ${e} &nbsp;[gcd(${e}, ${phi}) = 1 ✓, e ≠ p, e ≠ q ✓, e² mod φ(n) ≠ 1 ✓]<br>` +
+    `4. d = e⁻¹ mod φ(n) = ${d} &nbsp;[${e} × ${d} mod ${phi} = ${(eBig * d) % phi} ✓, d ≠ e ✓, d > 1 ✓]<br>` +
+    `5. Public key  = (${e}, ${n})<br>` +
+    `6. Private key = (${d}, ${n})`;
+
+  document.getElementById('results').style.display = 'block';
+}
+
+function encryptMsg() {
+  if (!_n) return;
+  const M = BigInt(document.getElementById('inp-msg').value || '0');
+  if (M <= 0n || M >= _n) {
+    showError(`Message must be between 1 and n−1 = ${_n - 1n}.`);
+    return;
+  }
+  hideNotice();
+  const C   = modPow(M, _e, _n);
+  const dec = modPow(C, _d, _n);
+  document.getElementById('out-cipher').textContent  = C.toString();
+  document.getElementById('out-decrypt').textContent = dec.toString();
+  document.getElementById('enc-result').style.display = 'block';
+}
+
+function decryptMsg() {
+  if (!_n) return;
+  const C = BigInt(document.getElementById('inp-msg').value || '0');
+  if (C <= 0n || C >= _n) {
+    showError(`Ciphertext must be between 1 and n−1 = ${_n - 1n}.`);
+    return;
+  }
+  hideNotice();
+  const M    = modPow(C, _d, _n);
+  const reenc = modPow(M, _e, _n);
+  document.getElementById('out-cipher').textContent  = reenc.toString();
+  document.getElementById('out-decrypt').textContent = M.toString();
+  document.getElementById('enc-result').style.display = 'block';
+}
+
+calculate();
+</script>
